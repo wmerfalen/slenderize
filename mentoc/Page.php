@@ -1,5 +1,6 @@
 <?php
 
+namespace mentoc;
 class Page {
 	private $m_view_dir = 'views';
 	protected $m_config_vars = [

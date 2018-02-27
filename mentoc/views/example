@@ -1,0 +1,26 @@
+html id="foobar" data-content='foo' onclick="javascript: alert(1);"
+	head
+		title example page
+		script src="js/jquery.js" type="text/javascript"
+		javascript:
+			var message = 'hello';
+			var foo_array = <?= json_encode(['foo','bar','fun']); ?>;
+			if(foo_array[0] == 'foo'){
+				console.log('foo is first element');
+			}
+	body
+		div id="main_content" class=['content','main']
+			h1 Example template file
+			-if $foo == 'bar'
+				p foo == bar
+			-elseif $foo == 'baz'
+				p foo == baz
+			-else
+				p foo !== bar && foo !== baz
+			p This is an example template file that I built as part of the refresher
+				project to help me get re-aquainted with php code and concepts. 
+				h2 code passes
+				ul
+					li first pass: recursive descent parser goes through and changes the tags and control statements into html/php code respectively
+					li second pass: the php interpretter is used on the temporary file generated from the first pass to evaluate the code
+			p note: this project is for academia. 

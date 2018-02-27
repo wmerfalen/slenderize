@@ -1,5 +1,5 @@
 <?php
-
+namespace mentoc;
 class Auth {
 	protected $m_users = [];
 	public function __construct(array $users){

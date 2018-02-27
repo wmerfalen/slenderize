@@ -12,13 +12,13 @@ function multi_isset(array $check_me,array $values) : bool {
 	return true;
 }
 function create_auth_object() : Auth {
-	return new Auth([
+	return new mentoc\Auth([
 		'john' => 'password1234',
 		'mary' => 'password4321',
 		'jane' => 'doedoedoe'
 	]);
 }
-if(Auth::isLoggedIn()){
+if(mentoc\Auth::isLoggedIn()){
 	Page::redirect('home');
 }
 
@@ -29,5 +29,10 @@ if(multi_isset($_POST,['login','user','password'])){
 		]
 		)
 	);
+}
+
+if(isset($_GET['api'])){
+	$parser = new mentoc\ViewParser();
+	$parser->parse(dirname(__FILE__) . '/mentoc/views/example');
 }
 include('login-page.php');

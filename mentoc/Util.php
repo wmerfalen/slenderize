@@ -1,10 +1,8 @@
 <?php
 
-namespace App;
+namespace mentoc;
 
 use Redis;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class Util
 {
@@ -19,7 +17,7 @@ class Util
 		if($finish > 32000){
 			$finish = 32000;
 		}
-		return self::rand() . \App\Util::to_string([rand($start,$finish),rand($start,$finish),rand($start,$finish)]);
+		return self::rand() . self::to_string([rand($start,$finish),rand($start,$finish),rand($start,$finish)]);
 	}
 
 	public static function to_string(array $r): string {
@@ -96,21 +94,6 @@ class Util
     **/
     public static function monoLog($message, $type = 'notice')
     {
-        if (is_array($type)) {
-            $args = $type;
-            $type = array_get($type, 'type', 'notice');
-        } else {
-            $args = [];
-        }
-        $heading = array_get($args, 'heading',
-            array_get($args, 'log', 'monolog')
-        );
-        $message = strtoupper($heading . ': ' . $message);
-        if ($type == 'critical' || $type == 'emergency') {
-            mail('bvfbarten@gmail.com', ucfirst($type) . ' Alert', $message);
-            mail('wmerfalen@gmail.com', ucfirst($type) . ' Alert', $message);
-        }
-        Log::{$type}($message);
     }
     public static function isWwwDomain()
     {
@@ -230,12 +213,6 @@ class Util
         return $return;
     }
 
-    public static function common(string $type, $category)
-    {
-        $entity = app()->make('App\Property\Site')->getEntity();
-        return $entity->getWebPublicCommon($category);
-    }
-
     public static function isCommandLine()
     {
         if (php_sapi_name() == 'cli') {
@@ -299,43 +276,11 @@ class Util
             //TODO: if preferences to log exceptions
         }
         //self::log("404: " . var_export($req,1) . " EXCEPTION: " . var_export($exception,1));
-        $site = app()->make('App\Property\Site');
-        //TODO: route this stuff through site controller's population methods
-        $site->getEntity()->loadLegacyProperty();
-        echo view('layouts/' . $site->getEntity()->getTemplateName() . '/404', [
-            'entity'=> $site->getEntity(),
-            'fsid' => $site->getEntity()->getTemplateName(),
-            'page' => '404'
-            ]);
         die();
     }
 
     public static function dieGeneric($req=null, $exception=null)
     {
-        $site = app()->make('App\Property\Site');
-        $path = "";
-        if ($req) {
-            $path = $req->path();
-        }
-        self::log($message = "Generic error: Site:" . $site->getEntity()->property_name . ": Page: {$path}" .
-            " Message:" . $exception->getMessage() . "::Code:" .  $exception->getCode() . ":File:" . $exception->getFile() . "::Line:" . $exception->getLine() . "::TraceAsString" .  var_export($exception->getTraceAsString(), 1));
-        //TODO: route this stuff through site controller's population methods
-        if (ENV("EMAIL_LOGS") == '1') {
-            self::log('emailing....');
-            try {
-                Mailer::queueError('wmerfalen@gmail.com', $site->getEntity()->getLegacyProperty()->url . ": $path -- ERROR", $message, ['matt@marketapts.com']);
-            } catch (Exception $e) {
-                self::log("ERROR SENDING EMAIL: " . var_export($e, 1));
-            }
-        }
-        $site->getEntity()->loadLegacyProperty();
-        echo view('layouts/' . $site->getEntity()->getTemplateName() . '/404', [
-            'errorGeneric' => 1,
-            'entity'=> $site->getEntity(),
-            'fsid' => $site->getEntity()->getTemplateName(),
-            'page' => '404'
-            ]);
-        die();
     }
 
 
