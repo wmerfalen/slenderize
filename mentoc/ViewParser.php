@@ -1,20 +1,53 @@
 <?php
-
+/**
+ * @author William Merfalen <github@bnull.net>
+ * @package mentoc 
+ * @license wtfpl  [@see https://www.wtfpl.net]
+ *
+ * ViewParser is a recursive descent parser that processes view files that
+ * have a very similar syntax to slimrb view files.
+ *
+ * Language grammar: [in EBNF]
+ * letter = "A" | "B" | "C" | "D" | "E" | "F" | "G"
+ *      | "H" | "I" | "J" | "K" | "L" | "M" | "N"
+ *      | "O" | "P" | "Q" | "R" | "S" | "T" | "U"
+ *      | "V" | "W" | "X" | "Y" | "Z" | "a" | "b"
+ *      | "c" | "d" | "e" | "f" | "g" | "h" | "i"
+ *      | "j" | "k" | "l" | "m" | "n" | "o" | "p"
+ *      | "q" | "r" | "s" | "t" | "u" | "v" | "w"
+ *      | "x" | "y" | "z" ; 
+ * digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+ * symbol = ? \x21 \x23-\x26 \x28-\x2f \x3a-\x40 \x5b-\x60 \x7b-\x7e ?;
+ * space = " ";
+ * all chars = { single quote | double quote | letter | digit | symbol };
+ * quote = "'" | '"';
+ * single quote = "'";
+ * double quote = '"';
+ * not double quote = { letter | digit | symbol | single quote };
+ * not single quote = { letter | digit | symbol | double quote };
+ * attribute = { letter | digit } , [ dash | { letter | digit } ], equals, 
+ *  single quote, { not single quote }, single quote 
+ *  |
+ *  { letter | digit } , [ dash | { letter | digit } ], equals, double quote, 
+ *  { not double quote }, double quote;
+ * tag = letter | { letter | digit };
+ * 
+ */
 namespace mentoc;
+use \mentoc\View as View;
 class ViewParser {
-	const HTML_TAG = 'htmltags';
-	const ATTRIBUTE = 'html-attribute';
-	const JS_TAG = 'javascript:';
-	const CODE_TAG = '-';
-	const INDENT = "\t";
-	const EOL = "\n";
+	const DIGIT = '|[0-9]{1}|';
+	const SYMBOL = '|[\\x21\\x23-\\x26\\x28-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7e]{1}|';
+	const LETTER = '|[a-zA-Z]{1}|';
+	const SINGLE_QUOTE = '|\'{1}|';
+	const DOUBLE_QUOTE = '|"{1}|';
+	const INDENT = '|\\x09{1}|';
+	const EOL = '|\\x0a{1}|';
+	/** @var string $m_file The absolute or relative file path of the view. */
 	protected $m_file = '';
-	protected $m_line_text = '';
-	protected $m_line_tokens = [];
-	protected $m_line = 0;
+	/** @var int $m_depth */
 	protected $m_depth = 0;
-	protected $m_sym = null;
-	protected $m_token_index = 0;
+	/** @var array $m_html_tags All recognized html tags. */
 	protected $m_html_tags = ['a','abbr','address','area','article',
 		'aside','audio','b','base','bdi','bdo','blockquote','body',
 		'br','button','canvas','caption','cite','code','col','colgroup',
@@ -29,111 +62,29 @@ class ViewParser {
 		'textarea','tfoot','th','thead','time','title','tr','track',
 		'u','ul','var','video','wbr'
 	];
-	public function parse($view_file_name){
-		$this->m_file = file($view_file_name);
-		$this->m_block();
+	/**
+	 * @param string $view_file_name The absolute or relative file path to the view to process
+	 * @return void
+	 */
+	public function parse($view_file_name) : View {
+		$this->m_file_pointer = fopen($view_file_name,'r');
+		if($this->m_file_pointer === false){
+				return new View(['error' => true,'loaded' => false,
+						'reason' => 'Could not open view file']);
+		}
+		return new View();
 	}
+	/**
+	 * Tokenizes and stores the next symbols in our member variables.
+	 * @return void
+	 */
 	protected function m_nextsym(){
-		if(strlen($this->m_line_text) == 0 && count($this->m_file) > $this->m_line){
-			do{
-				$this->m_line_text = $this->m_file[$this->m_line++];
-			}while(strlen($this->m_line_text) == 0 && count($this->m_file) > $this->m_line);
-			$this->m_token_index = 0;
-			$this->m_line_tokens = $this->m_tokenize($this->m_line_text);
-			var_dump($this->m_line_tokens);
-			$this->m_sym = $this->m_line_tokens['tokens'][$this->m_token_index++];
-			return;
-		}
-		if(count($this->m_line_tokens) > ++$this->m_token_index){
-			$this->m_sym = $this->m_line_tokens[$this->m_token_index];
-			return;
-		}
-		$this->m_sym = null;
 		return;
 	}
-	protected function m_store_until(&$store_here,$line,$start_at,$function){
-		do{
-			$store_here .= $line[$start_at++];
-		}while($function($line[$start_at]) == false && strlen($line) > $start_at);
-		return $start_at;
-	}
-	protected function m_tokenize($line_text){
-		$current = '';
-		$potential_attribute = '';
-		$tokens = [];
-		$is_attribute = false;
-		$attribute_seen = false;
-		$is_text_content = false;
-		$text_content = null;
-		$token_count = 0;
-		for($i=0; $i < strlen($line_text);$i++){
-			if(preg_match('|[^\'"= ]{1}|',$line_text[$i])){
-				$current .= $line_text[$i];
-				continue;
-			}
-			if($line_text[$i] == '='){
-				if(strlen($current)){
-					$is_attribute = true;
-					$attribute_seen = true;
-				}
-				$current .= $line_text[$i];
-				continue;
-			}
-
-			if($line_text[$i] == ' ' && strlen($current)){
-				if(!$is_attribute && $token_count > 0){
-					$is_text_content = true;
-					$text_content .= $current . ' ';
-				}else{
-					$tokens[] = $current;
-				}
-				$current = '';
-				$is_attribute = false;
-				$token_count++;
-				continue;
-			}
-			if($line_text[$i] == '"' && $is_attribute){
-				$i = $this->m_store_until($current,$line_text,$i,function($current_char) {
-					return $current_char == '"';
-				});
-				$current .= '"';
-				continue;
-			}
-			if($line_text[$i] == '\'' && $is_attribute){
-				$i = $this->m_store_until($current,$line_text,$i,function($current_char) {
-					return $current_char == '\'';
-				});
-				$current .= '\'';
-				continue;
-			}
-		}
-		if($is_text_content){
-			$text_content .= ' ' . $current;
-		}else{
-			$tokens[] = $current;
-		}
-		return [
-			'tag' => $tokens[0],
-			'tokens' => $tokens,
-			'text_content' => $text_content
-		];
-	}
-	protected function m_block(){
-		$this->m_nextsym();
-		if($this->m_accept(self::HTML_TAG)){
-			if($this->m_accept(self::EOL)){
-				$this->m_depth++;
-				return;
-			}
-		}
-	}
 	protected function m_accept($symbol) : bool {
-		if($symbol == self::HTML_TAG){
-			
-		}
 		return false;
 	}
-	protected function m_expect($symbol) : bool {
+	protected function m_expect($symbol,$times = 1) : bool {
 
 	}
 }
