@@ -9,16 +9,20 @@ html id="foobar" data-content='foo' onclick="javascript: alert(1);"
 				console.log('foo is first element');
 			}
 	body
+		div id="{{$div_id}}"
+			-if $logged_in
+				Hello, {{$user_name}}!
+			-else
+				a href="login.php"|Click here to login
 		div id="main_content" class=['content','main']
-			h1 Example template file
+			h1|Example template file
 			-if $foo == 'bar'
 				p foo == bar
 			-elseif $foo == 'baz'
 				p foo == baz
 			-else
 				p foo !== bar && foo !== baz
-			p This is an example template file that I built as part of the refresher
-				project to help me get re-aquainted with php code and concepts. 
+			p|One-liners are built by using the pipe character '|'
 				h2 code passes
 				ul
 					li first pass: recursive descent parser goes through and changes the tags and control statements into html/php code respectively
