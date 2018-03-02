@@ -5,22 +5,21 @@
  * @license wtfpl  [@see https://www.wtfpl.net]
  */
 namespace mentoc;
-class View {
+class Regex {
 	use Traits\Configurator;
-	/** @var bool $m_error if an error occured */
-	protected $m_error = true;
-	/** @var bool $m_loaded whether or not the view has been loaded */
-	protected $m_loaded = false;
+	/** @var string $m_string The actual regex string */
+	protected $m_string = null;
+	protected $m_friendly_string = 'null';
 	public function __construct(array $options = []){
 		if(is_array($options) && count($options)){
 			$this->m_init_options($options,
 				[
-				'get' => 
-					['error' => 'm_error','loaded' => 'm_loaded'],
-				'set' => []
+					'get' => ['regex' => 'm_string','friendly' => 'm_friendly_string'];
 				]
 			);
+			if(isset($options['friendly'])){
+				$this->m_friendly_string = $options['friendly'];
+			}
 		}
 	}
-
 }

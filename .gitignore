@@ -1,3 +1,6 @@
 composer
 composer.lock
 vendor
+index.php
+login-page.php
+js
