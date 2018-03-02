@@ -1,0 +1,6 @@
+html
+	body
+		div|This is a div
+			p|this is a paragraph
+		div|This is also a div
+			p|this is also a paragraph

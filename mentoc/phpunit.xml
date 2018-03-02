@@ -1,0 +1,11 @@
+<phpunit bootstrap="../vendor/autoload.php">
+	<testsuites>
+		<testsuite name="all">
+			<directory>tests</directory>
+			<directory>tests/ViewParser</directory>
+		</testsuite>
+		<testsuite name="rdp-logic">
+			<directory>tests/ViewParser</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

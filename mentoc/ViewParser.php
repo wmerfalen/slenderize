@@ -65,8 +65,11 @@ class ViewParser {
 	protected $m_regex_patterns = [
 		'digit' => '|[0-9]{1}|',
 		'symbol' => '|[\\x21\\x23-\\x26\\x28-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7e]{1}|',
-		'letter' => '|[a-zA-Z]{1}|'
+		'letter' => '|[a-zA-Z]{1}|',
+		'content' => '|[^\\x0a]{1}|'
 	];
+	/** @var \mentoc\FIFO $m_html FIFO structure of opening tags */
+	protected $m_html = null;
 	/** @var string $m_error Error messages go here */
 	protected $m_error = null;
 	/** @var int $m_line The current line number being processed */
@@ -77,16 +80,21 @@ class ViewParser {
 	protected $m_file = '';
 	/** @var int $m_depth */
 	protected $m_depth = 0;
+	/** @var string $m_shared_read_buffer A read buffer that is shared across m_line calls */
+	protected $m_shared_read_buffer = null;
 	/** @var string $m_read_buffer read buffer */
 	protected $m_read_buffer = null;
-	/** @var int $m_read_chunk_size the size of the chunks we read from the file */
-	protected $m_read_chunk_size = 250000;
+	const READ_CHUNK_SIZE = 250000;
+	/** @var string $m_current_tag The currently parsed tag */
+	protected $m_current_tag = '';
 	/** @var int $m_read_file_position the byte offset in the file that we are currently at */
 	protected $m_read_file_position = 0;
 	/** @var bool $m_eof true if we are at the end of the view file */
 	protected $m_eof = false;
 	/** @var int $m_view_file_size file size in bytes of the view file */
 	protected $m_view_file_size = 0;
+	/** @var \mentoc\LIFO $m_tag_stack A LIFO struct of tags as they are opened */
+	protected $m_tag_stack = null;
 	public function __construct(array $options = []){
 		$this->m_init();	
 	}
@@ -97,22 +105,101 @@ class ViewParser {
 		$this->m_read_file_position = 0;
 		$this->m_eof = false;
 		$this->m_view_file_size = 0;
-		$this->m_file_pointer = fopen($view_file_name,'r');
+		$this->m_file_pointer = null;
 		$this->m_increment_line_count = false;
 		$this->m_error = null;
+		$this->m_current_tag = '';
+		$this->m_html = new FIFO();
+		$this->m_tag_stack = new LIFO();
 	}
 	/**
 	 * @param string $view_file_name The absolute or relative file path to the view to process
-	 * @return \mentoc\View
+	 * @return bool
 	 */
-	public function parse($view_file_name) : View {
+	public function parse($view_file_name) : bool {
 		$this->m_init();
+		if(!file_exists($view_file_name)){
+			throw new FileException('Couldn\'t open file');
+		}
 		/** @todo if the file hasn't been modified, generate the view from the cached and previously generated php file */
+		$this->m_file_pointer = fopen($view_file_name,'r');
 		if($this->m_file_pointer === false){
-			return new View(['error' => true,'loaded' => false, 'reason' => 'Could not open view file']);
+			return false;
 		}
 		$this->m_view_file_size = filesize($view_file_name);
-		$view = new View();
+		return $this->m_program();
+	}
+	public function compose() : string {
+		$html = '';
+		do{ 
+			$html .= $this->m_html->pop();
+		}while(!$this->m_html->is_empty());
+		return $html . PHP_EOL;
+	}
+	protected function m_program() : bool {
+		while($this->m_line()){}
+		return $this->m_error === null;
+	}
+	protected function m_register_tag($value){
+		if(is_array($value) && isset($value['content'])){
+			$this->m_html->push($value['content']);
+			return;
+		}else if(is_array($value) && isset($value['close'])){
+			$this->m_html->push('</' . $value['close'] . '>');
+		}else if(is_array($value) && isset($value['open'])){
+			$this->m_html->push('<' . $value['open'] . '>');
+		}else{
+			$this->m_html->push('<' . $value . '>');
+		}
+	}
+	protected function m_tag() : bool {
+		$letters = 0;
+		//@todo accept variable
+		while($this->m_accept($this->regex('letter'))){ ++$letters; };
+		return !!$letters;
+	}
+	protected function m_after_tag() : bool {
+		if($this->m_accept("\n",false)){
+			$this->m_register_tag(['open' => $this->m_shared_read_buffer]);
+			$this->m_tag_stack->push($this->m_shared_read_buffer);
+			$this->m_depth++;
+			return true;
+		}else if($this->m_accept('|',false)){
+			$this->m_register_tag(['open' => $this->m_shared_read_buffer]);
+			$this->m_tag_stack->push($this->m_shared_read_buffer);
+			$this->m_shared_read_buffer = '';
+			$this->m_expect($this->regex('content'));
+			while($this->m_accept($this->regex('content'))){ ;; }
+			$this->m_register_tag(['content' => $this->m_shared_read_buffer ]);
+			$this->m_accept("\n");
+			$this->m_shared_read_buffer = '';
+			$this->m_depth++;
+			return true;
+		}
+		return false;
+	}
+	protected function m_line() : bool {
+		$tabs = $this->m_tab();
+		if($tabs < $this->m_depth){
+			for(; $this->m_depth > $tabs; --$this->m_depth){
+				$this->m_register_tag(['close' => $this->m_tag_stack->pop()]);
+			}
+			$this->m_depth = $tabs;
+		}else{
+			$this->m_depth = $tabs;
+		}
+		if($this->m_accept("\n",false)){
+			return true;
+		}
+		if($this->m_tag() && $this->m_after_tag()){
+			$this->m_shared_read_buffer = '';
+			return true;
+		}
+
+		if($this->m_eof){
+			return false;
+		}
+		return false;
 	}
 	/**
 	 * Returns a new Regex object constructed from the $m_regex_patterns variable
@@ -137,8 +224,8 @@ class ViewParser {
 	 * @return int 
 	 */
 	protected function m_read_chunk() : int {
-		$chars = fread($this->m_file_pointer,$this->m_read_chunk_size);
-		if($char === false){ 
+		$chars = fread($this->m_file_pointer,self::READ_CHUNK_SIZE);
+		if($chars === false){ 
 			$this->m_eof = true;
 			return 0;
 		}
@@ -147,19 +234,14 @@ class ViewParser {
 	}
 	/**
 	 * Expects $times number of tabs
-	 * @param int $times The number of tabs to expect
-	 * @return bool
+	 * @return int
 	 */
-	protected function m_tab($times = 1) : bool { 
-		if($times < 0){
-			return false;
+	protected function m_tab() : int { 
+		$tab_count = 0;
+		while($this->m_accept("\t",false)){
+			++$tab_count;
 		}
-		for($i = 0; $i < $times;$i++){
-			if(!$this->m_expect("\t")){
-				return false;
-			}
-		}
-		return true;
+		return $tab_count;
 	}
 	/**
 	 * Tokenizes and stores the next symbols in our member variables.
@@ -170,12 +252,16 @@ class ViewParser {
 			$this->m_eof = true;
 			return null;
 		}
-		if($this->m_read_chunk_size % $this->m_read_file_position == 0 && 
-			$this->m_read_file_position > 0){
+		if(self::READ_CHUNK_SIZE == $this->m_read_file_position){
 			if($this->m_read_chunk() == 0){
 				return null;
 			}
 			$this->m_read_file_position = 0;
+		}
+		if(empty($this->m_read_buffer)){
+			if($this->m_read_chunk() == 0){
+				return null;
+			}
 		}
 		if($this->m_increment_line_count){
 			$this->m_line++;
@@ -200,21 +286,35 @@ class ViewParser {
 	 * Accepts a symbol, just like m_expect, but unlike m_expect it will 
 	 * not report an error if that symbol is not present. 
 	 * @param mixed $expected_string The string or Regex to accept
+	 * @param bool $store_next_char Whether or not the function should store the accepted char in $this->m_shared_read_buffer
 	 * @return bool
 	 */
-	protected function m_accept($expected_string) : bool {
-		$next_char = $this->m_nextsym();
+	protected function m_accept($expected_string,$store_next_char = true) : bool {
+		static $accepted = true;
+		static $next_char;
+		if($accepted){
+			$next_char = $this->m_nextsym();
+		}
 		if($next_char === null){
 			/** signifies EOF */
 			return false;
 		}
 		if($expected_string instanceof Regex){
-			return preg_match($expected_string->regex,$next_char);
+			$accepted = preg_match($expected_string->regex,$next_char);
+			if($accepted && $store_next_char){
+				$this->m_shared_read_buffer .= $next_char;
+			}
+			return $accepted;
 		}else if(is_string($expected_string)){
-			return $next_char === $expected_string;
+			$accepted = $next_char === $expected_string;
+			if($accepted && $store_next_char){
+				$this->m_shared_read_buffer .= $next_char;
+			}
+			return $accepted;
 		}else{
 			throw 'Invalid type passed to m_accept: ' . gettype($expected_string);
 		}
+		$accepted = false;
 		return false;
 	}
 	/**
@@ -223,7 +323,7 @@ class ViewParser {
 	 * @param mixed $expected_string The string or Regex to expect
 	 * @return bool
 	 */
-	protected function m_expect($expected_string) : bool {
+	protected function m_expect($expected_string,$save_char = true) : bool {
 		$next_char = $this->m_nextsym();
 		if($next_char === null){
 			$this->m_error('End of file reached. Expected ' . $expected_string);
@@ -234,15 +334,21 @@ class ViewParser {
 				$this->m_error('Expected ' . $expected_string->friendly . ' on line: ' . $this->m_line);
 				return false;
 			}
+			if($save_char){
+				$this->m_shared_read_buffer .= $next_char;
+			}
 			return true;
 		}else if(is_string($expected_string)){
 			if($next_char !== $expected_string){
 				$this->m_error('Expected "' . $expected_string . '" on line: ' . $this->m_line . '. Instead, we found: "' . $next_char . '".');
 				return false;
 			}
+			if($save_char){
+				$this->m_shared_read_buffer .= $next_char;
+			}
 			return true;
 		}else{
-			throw 'Invalid type passed to m_expect: ' . gettype($expected_string);
+			throw new \Exception('Invalid type passed to m_expect: ' . gettype($expected_string));
 		}
 	}
 }

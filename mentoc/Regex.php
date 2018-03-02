@@ -14,7 +14,8 @@ class Regex {
 		if(is_array($options) && count($options)){
 			$this->m_init_options($options,
 				[
-					'get' => ['regex' => 'm_string','friendly' => 'm_friendly_string'];
+					'get' => ['regex' => 'm_string','friendly' => 'm_friendly_string'],
+					'set' => ['regex' => 'm_string']
 				]
 			);
 			if(isset($options['friendly'])){

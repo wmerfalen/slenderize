@@ -5,7 +5,7 @@
  * @license wtfpl  [@see https://www.wtfpl.net]
  */
 namespace mentoc\Traits;
-class Configurator {
+trait Configurator {
 	/** @var array $m_configurator_options_user_can_set nuff said */
 	protected $m_configurator_options_user_can_set = [
 		/* example: 
