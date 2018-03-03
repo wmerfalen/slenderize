@@ -1,0 +1,7 @@
+language: php
+php:
+    - '7.1.0'
+install: 
+    - composer install
+script:
+    - phpunit --configuration mentoc/phpunit.xml --testsuite all

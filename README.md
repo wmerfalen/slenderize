@@ -28,8 +28,18 @@ html
 	body
 		div|This is a literal string
 ```
+#### Variables
+Embedding variables is very similar to most webdev frameworks
+```
+html
+	body {{$my_attributes}}
+		div|This is a div
+```
+This feature is available, but this project is still in dev. So while this syntax does work, there are still other things that need to be built for this to be useful. The Recursive Descent Parser, however, parses and generates the correct html.
 # todo
-* Embedding variables into the view 
+* Setting variables to be sent to a view
+* Variables that are objects and support for accessing properties 
+* Supporting array subscripting of variables
 * Embeddeding function calls into the view
 * simple if/else/elseif statements
 * looping constructs

@@ -1,0 +1,1 @@
+<html><body><div <?=$view_data['this_is_a_variable'];?>><p>this is a paragraph</p></div><div>This is also a div<p>this is also a paragraph</p></div><?=$view_data['this_is_also_a_variable'];?></body></html>

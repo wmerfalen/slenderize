@@ -23,4 +23,7 @@ class Regex {
 			}
 		}
 	}
+	public function __toString(){
+		return $this->m_friendly_string;
+	}
 }

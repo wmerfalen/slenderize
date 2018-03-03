@@ -1,0 +1,7 @@
+html
+	body
+		div {{$this_is_a_variable}}
+			p|this is a paragraph
+		div|This is also a div
+			p|this is also a paragraph
+		{{$this_is_also_a_variable}}

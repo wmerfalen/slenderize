@@ -13,21 +13,7 @@ class RDPLogicTest extends TestCase
 	}
 
 	public function expectedAndActuals() : array {
-		return [
-			['literal'],
-			['multiple-lines'],
-			['just-tags'],
-		];
+		return require(dirname(__FILE__) . '/config/runthese.php');
 	}
 
-	public function validViewsFromFileSystem(){
-		$files = [
-			'one-liner-body',
-		];
-		$file_source_array = [];
-		foreach($files as $fname){
-			$file_source_array[] = [dirname(__FILE__) . '/views/' . $fname];
-		}
-		return $file_source_array;
-	}
 }

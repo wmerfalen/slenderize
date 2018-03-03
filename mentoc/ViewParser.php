@@ -66,12 +66,14 @@ class ViewParser {
 		'digit' => '|[0-9]{1}|',
 		'symbol' => '|[\\x21\\x23-\\x26\\x28-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7e]{1}|',
 		'letter' => '|[a-zA-Z]{1}|',
-		'content' => '|[^\\x0a]{1}|'
+		'content' => '|[^\\x0a]{1}|',
+		'identifier' => '|[a-zA-Z0-9_]{1}|',
+		'attribute-ident' => '|[a-zA-Z0-9\-]+|'
 	];
 	/** @var \mentoc\FIFO $m_html FIFO structure of opening tags */
 	protected $m_html = null;
-	/** @var string $m_error Error messages go here */
-	protected $m_error = null;
+	/** @var array $m_error Error messages go here */
+	protected $m_error = [];
 	/** @var int $m_line The current line number being processed */
 	protected $m_line = 1;
 	/** @var bool $m_increment_line_count Whether or not to increment the $m_line variable next time m_nextsym is called */
@@ -107,7 +109,7 @@ class ViewParser {
 		$this->m_view_file_size = 0;
 		$this->m_file_pointer = null;
 		$this->m_increment_line_count = false;
-		$this->m_error = null;
+		$this->m_error = [];
 		$this->m_current_tag = '';
 		$this->m_html = new FIFO();
 		$this->m_tag_stack = new LIFO();
@@ -119,15 +121,16 @@ class ViewParser {
 	public function parse($view_file_name) : bool {
 		$this->m_init();
 		if(!file_exists($view_file_name)){
-			throw new FileException('Couldn\'t open file');
+			throw new FileException('View file doesn\'t exist');
 		}
 		/** @todo if the file hasn't been modified, generate the view from the cached and previously generated php file */
 		$this->m_file_pointer = fopen($view_file_name,'r');
 		if($this->m_file_pointer === false){
-			return false;
+			throw new FileException('Couldn\'t open view file');
 		}
 		$this->m_view_file_size = filesize($view_file_name);
-		return $this->m_program();
+		$rdp_status = $this->m_program();
+		return $rdp_status;
 	}
 	public function compose() : string {
 		$html = '';
@@ -137,46 +140,162 @@ class ViewParser {
 		return $html . PHP_EOL;
 	}
 	protected function m_program() : bool {
-		while($this->m_line()){}
-		return $this->m_error === null;
+		while($this->m_line()){ ;; }
+		return empty($this->m_error);
 	}
-	protected function m_register_tag($value){
-		if(is_array($value) && isset($value['content'])){
+	public function error($message){
+		$this->m_error[] = $message;
+	}
+	protected function m_register_multi(array $array_of_array){
+		foreach($array_of_array as $index => $inner_array){
+			$this->m_register_tag($inner_array);
+		}
+	}
+	protected function m_register_tag(array $value){
+		if(isset($value['content'])){
 			$this->m_html->push($value['content']);
-			return;
-		}else if(is_array($value) && isset($value['close'])){
+		}else if(isset($value['attribute'])){
+			$this->m_html->push(' ' . trim($value['attribute']));
+		}else if(isset($value['variable'])){
+			$this->m_html->push('<?=$view_data[\'' . $value['variable'] . '\'];?>');
+		}else if(isset($value['close'])){
 			$this->m_html->push('</' . $value['close'] . '>');
-		}else if(is_array($value) && isset($value['open'])){
+		}else if(isset($value['open'])){
 			$this->m_html->push('<' . $value['open'] . '>');
-		}else{
-			$this->m_html->push('<' . $value . '>');
+		}else if(isset($value['half-open'])){
+			$this->m_html->push('<' . $value['half-open']);
+		}else if(isset($value['raw'])){
+			$this->m_html->push($value['raw']);
 		}
 	}
 	protected function m_tag() : bool {
 		$letters = 0;
-		//@todo accept variable
 		while($this->m_accept($this->regex('letter'))){ ++$letters; };
 		return !!$letters;
 	}
 	protected function m_after_tag() : bool {
 		if($this->m_accept("\n",false)){
-			$this->m_register_tag(['open' => $this->m_shared_read_buffer]);
-			$this->m_tag_stack->push($this->m_shared_read_buffer);
+			$this->m_register_tag(['open' => $this->m_shared()]);
+			$this->m_tag_stack->push($this->m_shared());
 			$this->m_depth++;
 			return true;
 		}else if($this->m_accept('|',false)){
-			$this->m_register_tag(['open' => $this->m_shared_read_buffer]);
-			$this->m_tag_stack->push($this->m_shared_read_buffer);
-			$this->m_shared_read_buffer = '';
+			$this->m_register_tag(['open' => $this->m_shared()]);
+			$this->m_tag_stack->push($this->m_shared());
+			$this->m_clear_shared();
 			$this->m_expect($this->regex('content'));
 			while($this->m_accept($this->regex('content'))){ ;; }
-			$this->m_register_tag(['content' => $this->m_shared_read_buffer ]);
+			$this->m_register_tag(['content' => $this->m_shared() ]);
 			$this->m_accept("\n");
-			$this->m_shared_read_buffer = '';
+			$this->m_clear_shared();
+			$this->m_depth++;
+			return true;
+		}else{
+			$loops = 0;
+			$this->m_register_tag(['half-open' => $this->m_shared()]);
+			$this->m_tag_stack->push($this->m_shared());
+			$this->m_clear_shared();
+			$this->m_expect(' ',false);
+			$variable_name = '';
+			do{
+				if($this->m_variable($variable_name)){
+					$this->m_register_multi([
+						['raw' => ' '],['variable' => $variable_name]
+					]);
+				}
+				if($this->m_attribute()){
+				}
+			}
+			while($this->m_accept(' ',false));
+			$this->m_register_tag(['raw' => '>']);
+			$this->m_accept("\n");
+			$this->m_clear_shared();
 			$this->m_depth++;
 			return true;
 		}
 		return false;
+	}
+
+	protected function m_attribute(): bool {
+		if($this->m_accept($this->regex('attribute-ident'))){
+			while($this->m_accept($this->regex('attribute-ident'))){ ;; }
+			$this->m_expect("=",true);
+			if($this->m_accept('"',true)){
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Throws a FatalErrorException with $message as it's constructor argument.
+	 * @param string $message
+	 * @return false
+	 * @throws FatalErrorException
+	 */
+	public function halt($message){
+		throw FatalErrorException($message);
+	}
+	
+	/**
+	 * Reports a syntax error. A syntax error is a fatal and unrecoverable. 
+	 * @param string $message
+	 * @return void
+	 */
+	protected function m_syntax_error($message){
+		$this->halt($message);
+	}
+	protected function m_clear_shared(){
+		$this->m_shared_read_buffer = '';
+	}
+	protected function m_shared() : string {
+		return $this->m_shared_read_buffer;
+	}
+	/**
+	 * Parses a variable declaration, if one exists. Returns true if a variable was parsed. The name of the variable is stored in $variable_name. 
+	 * @param string $variable_name Where to store the variable name. If no variable name is extracted, this function will set this parameter to null
+	 * @return bool
+	 */
+	protected function m_variable(&$variable_name) : bool {
+		if($this->m_accept('{',false)){
+			if($this->m_expect('{',false)){
+				while($this->m_accept(' ',false)){ ;; }
+				if($this->m_expect('$',false) && 
+					$this->m_identifier($variable_name) &&
+					$this->m_expect('}',false) &&
+					$this->m_expect('}',false)){
+					return true;
+					}
+			}else{
+				$this->m_syntax_error('Expected "{" after "{" on line: ' . $this->m_line);
+			}
+		}
+		$variable_name = null;
+		return false;
+	}
+	/**
+	 * Parses an identifier as per our EBNF rules.
+	 * @param string $identifier Where to store the identifier characters. 
+	 * @param string $initial_mode Defaults to 'expect' in which case the first call will use m_expect. If set to any other value, this function will use m_accept as it's first call.
+	 * @return bool
+	 */
+	protected function m_identifier(&$identifier,$initial_mode='expect') : bool {
+		if($initial_mode == 'expect'){
+			$first_call = 'm_expect';
+		}else{
+			$first_call = 'm_accept';
+		}
+		$this->m_clear_shared();
+		if($this->$first_call($this->regex('letter'))){
+			while($this->m_accept($this->regex('identifier'))){ ;; }
+			$identifier = $this->m_shared();
+			return true;
+		}else{
+			if($initial_mode == 'expect'){
+				$this->m_syntax_error('Identifiers must start with a letter.');
+				return false;
+			}
+			return false;
+		}
 	}
 	protected function m_line() : bool {
 		$tabs = $this->m_tab();
@@ -184,15 +303,21 @@ class ViewParser {
 			for(; $this->m_depth > $tabs; --$this->m_depth){
 				$this->m_register_tag(['close' => $this->m_tag_stack->pop()]);
 			}
-			$this->m_depth = $tabs;
-		}else{
-			$this->m_depth = $tabs;
 		}
+		$this->m_depth = $tabs;
 		if($this->m_accept("\n",false)){
 			return true;
 		}
+		if($this->m_variable($variable_name)){
+			$this->m_register_tag(['variable' => $variable_name]);
+			if(!$this->m_expect("\n",false)){
+				$this->m_syntax_error('Expected NEWLINE on line: ' . $this->m_line);
+				return false;
+			}
+			return true;
+		}
 		if($this->m_tag() && $this->m_after_tag()){
-			$this->m_shared_read_buffer = '';
+			$this->m_clear_shared();
 			return true;
 		}
 
@@ -275,14 +400,6 @@ class ViewParser {
 		return $next_char;
 	}
 	/**
-	 * Sets the error string
-	 * @param string $message The error message to store
-	 * @return void
-	 */
-	protected function m_error($message){
-		$this->m_error = $message;
-	}
-	/**
 	 * Accepts a symbol, just like m_expect, but unlike m_expect it will 
 	 * not report an error if that symbol is not present. 
 	 * @param mixed $expected_string The string or Regex to accept
@@ -291,24 +408,29 @@ class ViewParser {
 	 */
 	protected function m_accept($expected_string,$store_next_char = true) : bool {
 		static $accepted = true;
-		static $next_char;
-		if($accepted){
-			$next_char = $this->m_nextsym();
-		}
+		static $next_char = null;
+		$next_char = $this->m_nextsym();
 		if($next_char === null){
 			/** signifies EOF */
 			return false;
 		}
+		
 		if($expected_string instanceof Regex){
 			$accepted = preg_match($expected_string->regex,$next_char);
 			if($accepted && $store_next_char){
 				$this->m_shared_read_buffer .= $next_char;
+			}
+			if(!$accepted){
+				$this->m_read_file_position--;
 			}
 			return $accepted;
 		}else if(is_string($expected_string)){
 			$accepted = $next_char === $expected_string;
 			if($accepted && $store_next_char){
 				$this->m_shared_read_buffer .= $next_char;
+			}
+			if(!$accepted){
+				$this->m_read_file_position--;
 			}
 			return $accepted;
 		}else{
@@ -326,12 +448,12 @@ class ViewParser {
 	protected function m_expect($expected_string,$save_char = true) : bool {
 		$next_char = $this->m_nextsym();
 		if($next_char === null){
-			$this->m_error('End of file reached. Expected ' . $expected_string);
+			$this->m_syntax_error('End of file reached. Expected ' . $expected_string);
 			return false;
 		}
 		if($expected_string instanceof Regex){
 			if(!preg_match($expected_string->regex,$next_char)){
-				$this->m_error('Expected ' . $expected_string->friendly . ' on line: ' . $this->m_line);
+				$this->m_syntax_error('Expected ' . $expected_string->friendly . ' on line: ' . $this->m_line);
 				return false;
 			}
 			if($save_char){
@@ -340,7 +462,7 @@ class ViewParser {
 			return true;
 		}else if(is_string($expected_string)){
 			if($next_char !== $expected_string){
-				$this->m_error('Expected "' . $expected_string . '" on line: ' . $this->m_line . '. Instead, we found: "' . $next_char . '".');
+				$this->m_syntax_error('Expected "' . $expected_string . '" on line: ' . $this->m_line . '. Instead, we found: "' . $next_char . '".');
 				return false;
 			}
 			if($save_char){
