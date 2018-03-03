@@ -1,4 +1,5 @@
 # rdp-view-system
+[![Build Status](https://travis-ci.org/wmerfalen/rdp-view-system.svg?branch=master)](https://travis-ci.org/wmerfalen/rdp-view-system)
 
 #### Description
 A PHP package that attempts to mimic some of the unique qualities of slimrb. 
