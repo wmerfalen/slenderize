@@ -45,6 +45,26 @@ class PageTest extends TestCase
 		$this->assertEquals($cache_dir,$page->get_config('cache_dir'));
 	}
 
+    public function testCallingFunctionsOnObjectsThatArePassedToPages()
+    {
+		$view_dir = dirname(__FILE__) . '/ViewParser/views';
+		$cache_dir = dirname(__FILE__) . '/ViewParser/cache';
+		$final_file = dirname(__FILE__) . '/ViewParser/views/functioncall-final';
+		Config::set('view_dir',$view_dir);
+		Config::set('cache_dir',$cache_dir);
+		$page = new Page('functioncall',[
+			'my_object' => new class {
+				public function foo(){
+					return 'bar';
+				}
+			}
+		]);
+		ob_start();
+		$page->view();
+		$output = ob_get_contents();
+		ob_end_flush();
+        $this->assertEquals($output,file_get_contents($final_file));
+	}
     public function testPassingVariablesToPages()
     {
 		$title = 'Welcome to my page';
@@ -58,7 +78,8 @@ class PageTest extends TestCase
 		]);
 		ob_start();
 		$page->view();
-        $this->assertEquals(ob_get_contents(),file_get_contents($final_file));
+		$output = ob_get_contents();
 		ob_end_flush();
+        $this->assertEquals($output,file_get_contents($final_file));
     }
 }

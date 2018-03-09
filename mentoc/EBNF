@@ -18,24 +18,28 @@
   escaped quote = "\'" | '\"';
   not double quote = { letter | digit | symbol | single quote };
   not single quote = { letter | digit | symbol | double quote };
-  variable  = "{{$", identifier, [ ";" ], "}}";
-  function call =  "{{$", identifier, "->", identifier, "()", [ ";" ], "}}";
-  content = { letter | digit | symbol | quote | space | variable | function call };
+  embedded prefix = "{{$", identifier;
+  embedded suffix = "}}";
+  php arrow call = "->";
+  function call =  embedded prefix, php arrow call, identifier, "()", embedded suffix; 
+  variable  = embedded prefix, embedded suffix;
+  embedded = function call | variable;
+  content = { letter | digit | symbol | quote | space | embedded };
   identifier = letter, { letter | digit | "_" };
   quoted string = single quote, { escaped quote | letter | digit | symbol | space }, single quote
    |
    double quote, { escaped quote | letter | digit | symbol | space }, double quote
    |
   attribute = { letter | digit } , [ dash | { letter | digit } ], equals, 
-   single quote, { not single quote | variable }, single quote 
+   single quote, { not single quote | embedded }, single quote 
    |
    { letter | digit } , [ dash | { letter | digit } ], equals, double quote, 
-   { not double quote | variable }, double quote;
+   { not double quote | embedded }, double quote;
   literal content = literal, content, [ { content } ];
-  tag = letter |  { letter | digit } | variable;
-  after tag = space, { attribute | variable | function call }, [ space ] 
+  tag = letter |  { letter | digit } | embedded;
+  after tag = space, { attribute | embedded }, [ space ] 
    |
-   space, { attribute | variable | function call }, space, literal content;
+   space, { attribute | embedded }, space, literal content;
   line = tag, after tag, newline
    |
    { tab }, tag, after tag, newline

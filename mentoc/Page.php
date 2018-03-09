@@ -46,12 +46,16 @@ class Page {
 	}
 	protected function m_serve(string $php_file){
 		$view_data = $this->m_variable_bindings;
-		include $php_file;
+		require $php_file;
+	}
+	protected function m_sanitize_view_name(string $name) : string {
+		return preg_replace('|[^a-z0-9\-]+|','',$name);
 	}
 	public function view($name=null) {
 		if($name === null){
 			$name = $this->m_view_name;
 		}
+		$name = $this->m_sanitize_view_name($name);
 		$view = new View();
 		$cache_file = $this->get_config('cache_dir') . '/' . $name . '.php';
 		$view_file = $this->get_config('view_dir') . '/' . $name;

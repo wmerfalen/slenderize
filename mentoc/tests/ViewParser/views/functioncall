@@ -1,0 +1,9 @@
+html
+	head
+		title
+			{{$my_object->foo()}}
+	body
+		div
+			p
+		div
+			p

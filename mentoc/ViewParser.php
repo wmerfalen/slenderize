@@ -51,6 +51,10 @@ class ViewParser {
 	public function __construct(array $options = []){
 		$this->m_init();	
 	}
+	/**
+	 * Initializes all member variables into a state that readies the parser.
+	 * @return void
+	 */
 	protected function m_init(){
 		$this->m_line = 1;
 		$this->m_depth = 0;
@@ -94,6 +98,10 @@ class ViewParser {
 		}while(!$this->m_html->is_empty());
 		return $html . PHP_EOL;
 	}
+	/**
+	 * Main entrance point to the parser.
+	 * @return bool
+	 */
 	protected function m_program() : bool {
 		while($this->m_line()){ ;; }
 		return empty($this->m_error);
@@ -106,11 +114,21 @@ class ViewParser {
 	public function error($message){
 		$this->m_error[] = $message;
 	}
+	/**
+	 * A convenience wrapper function to pass data to the m_register_tag function. Accepts an array of arrays.
+	 * @param array $value 2d array of values that will ultimately be passed to m_register_tag
+	 * @return void
+	 */
 	protected function m_register_multi(array $array_of_array){
 		foreach($array_of_array as $index => $inner_array){
 			$this->m_register_tag($inner_array);
 		}
 	}
+	/**
+	 * 'registers' a tag (sometimes a raw string) and pushes said string onto the html stack.
+	 * @param array $value
+	 * @return void
+	 */
 	protected function m_register_tag(array $value){
 		if(isset($value['content'])){
 			$this->m_html->push($value['content']);
@@ -126,13 +144,36 @@ class ViewParser {
 			$this->m_html->push('<' . $value['half-open']);
 		}else if(isset($value['raw'])){
 			$this->m_html->push($value['raw']);
+		}else if(isset($value['function_call'])){
+			if(isset($value['object']) && isset($value['function_name'])
+				&& isset($value['type'])){
+				if($value['type'] == 'arrow'){
+					$this->m_html->push(
+						'<?=$view_data[\'' . $value['object'] . '\']->' . $value['function_name'] . '();?>'
+					);
+				}
+				/** @todo support static calls */
+				if($value['type'] == 'static'){
+					$this->m_html->push(
+						'<?=$view_data[\'' . $value['object'] . '\']::' . $value['function_name'] . '();?>'
+					);
+				}
+			}
 		}
 	}
+	/**
+	 * Parses an html tag. Doesn't validate against whether or not the tag exists in any HTML standards since HTML is a flexible XML parser in disguise.
+	 * @return bool
+	 */
 	protected function m_tag() : bool {
 		$letters = 0;
 		while($this->m_accept($this->regex('letter'))){ ++$letters; };
 		return !!$letters;
 	}
+	/**
+	 * Parses the strings after the initial tag.
+	 * @return bool
+	 */
 	protected function m_after_tag() : bool {
 		if($this->m_accept("\n",false)){
 			$this->m_register_tag(['open' => $this->m_shared()]);
@@ -158,12 +199,11 @@ class ViewParser {
 			$this->m_expect(' ',false);
 			$variable_name = '';
 			do{
-				if($this->m_variable($variable_name)){
-					$this->m_register_multi([
-						['raw' => ' '],['variable' => $variable_name]
-					]);
-				}
-				if($this->m_attribute()){
+				$this->m_register_tag(['raw' => ' ']);
+				if($this->m_embedded()){
+					continue;
+				}else if($this->m_attribute()){
+					/** @todo save the attribute */
 				}
 			}
 			while($this->m_accept(' ',false));
@@ -175,7 +215,46 @@ class ViewParser {
 		}
 		return false;
 	}
+	/**
+	 * @todo fill this function in
+	 * @return bool
+	 */
+	protected function m_static_call() : bool{
 
+	}
+
+	/**
+	 * Parses an embedded prefix: "{{$identifer" and stores the identifier in the only param to this function
+	 * @param string &$variable_name The variable name will be stored here
+	 * @return bool
+	 */
+	protected function m_embedded_prefix(&$variable_name) : bool {
+		if($this->m_accept('{',false) && $this->m_accept('{',false)
+			&& $this->m_accept('$',false)){
+			return $this->m_identifier($variable_name);
+		}
+		return false;
+	}
+
+	/**
+	 * Parses an embedded suffix: '}}'
+	 * @return bool
+	 */
+	protected function m_embedded_suffix() : bool {
+		return $this->m_accept('}',false) && $this->m_expect('}',false);
+	}
+
+	/**
+	 * Parses an instance call operator '->'
+	 * @return bool
+	 */
+	protected function m_php_arrow_call() : bool {
+		return $this->m_accept('-',false) && $this->m_expect('>',false);
+	}
+	/**
+	 * Parses an html attribute.
+	 * @return bool
+	 */
 	protected function m_attribute(): bool {
 		if($this->m_accept($this->regex('attribute-ident'))){
 			while($this->m_accept($this->regex('attribute-ident'))){ ;; }
@@ -193,7 +272,7 @@ class ViewParser {
 	 * @throws FatalErrorException
 	 */
 	public function halt($message){
-		throw FatalErrorException($message);
+		throw new FatalErrorException($message);
 	}
 	
 	/**
@@ -204,32 +283,70 @@ class ViewParser {
 	protected function m_syntax_error($message){
 		$this->halt($message);
 	}
+	/**
+	 * Wrapper function to clear the currently shared buffer. Like m_initial_mode, this function exists for modular purposes
+	 * @return void
+	 */
 	protected function m_clear_shared(){
 		$this->m_shared_read_buffer = '';
 	}
+	/**
+	 * Wrapper function to return the currently shared buffer. Like m_initial_mode, this function exists for modular purposes
+	 * @return string
+	 */
 	protected function m_shared() : string {
 		return $this->m_shared_read_buffer;
 	}
 	/**
-	 * Parses a variable declaration, if one exists. Returns true if a variable was parsed. The name of the variable is stored in $variable_name. 
-	 * @param string $variable_name Where to store the variable name. If no variable name is extracted, this function will set this parameter to null
+	 * Currently expects '()'. This will soon change once the php grammar for passing parameters is built in to the parser.
 	 * @return bool
 	 */
-	protected function m_variable(&$variable_name) : bool {
-		if($this->m_accept('{',false)){
-			if($this->m_expect('{',false)){
-				if($this->m_expect('$',false) && 
-					$this->m_identifier($variable_name) &&
-					$this->m_expect('}',false) &&
-					$this->m_expect('}',false)){
-					return true;
-					}
-			}else{
-				$this->m_syntax_error('Expected "{" after "{" on line: ' . $this->m_line);
-			}
-		}
+	protected function m_function_call_parens() : bool {
+		return $this->m_expect('(',false) && $this->m_expect(')',false);
+	}
+	/**
+	 * Parses a variable/instance function call/static function call, if one exists. Returns true if one of these entities happened to be parsed.  
+	 * @return bool
+	 */
+	protected function m_embedded() : bool {
 		$variable_name = null;
+		if($this->m_embedded_prefix($variable_name)){
+			if($this->m_embedded_suffix()){
+				$this->m_register_multi([
+					['variable' => $variable_name]
+				]);
+			}else if($this->m_php_arrow_call()){
+				$identifier = null;
+				if($this->m_identifier($identifier) && $this->m_function_call_parens()){
+					$this->m_register_tag(
+						['function_call' => true,
+						 'object' => $variable_name,
+						 'function_name' => $identifier,
+						 'type' => 'arrow'
+						]
+					);
+				}
+				if(!$this->m_embedded_suffix()){
+					$this->halt('Expecting embedded suffix on line: ' . $this->m_line);
+					return false;
+				}
+			}else if($this->m_static_call()){
+				/** @todo Accept static calls */
+			}else{
+				$this->halt('Unknown variable/function embedding on line: ' . $this->m_line);
+				return false;
+			}
+			return true;
+		}
 		return false;
+	}
+	/**
+	 * Processes any inital_mode variables that may be passed to any of the parsing functions. The presence of this function is mainly to keep inital mode functionality modular so we can swap out stuff without massive substitutions in the future should we change which functions should be called (i.e.: m_expect or m_accept)
+	 * @param string $mode The initial mode. Defaults to 'expect'
+	 * @return string
+	 */
+	protected function m_initial_mode($mode = 'expect') : string {
+		return $mode == 'expect' ? 'm_expect' : 'm_accept';
 	}
 	/**
 	 * Parses an identifier as per our EBNF rules.
@@ -238,11 +355,7 @@ class ViewParser {
 	 * @return bool
 	 */
 	protected function m_identifier(&$identifier,$initial_mode='expect') : bool {
-		if($initial_mode == 'expect'){
-			$first_call = 'm_expect';
-		}else{
-			$first_call = 'm_accept';
-		}
+		$first_call = $this->m_initial_mode($initial_mode);
 		$this->m_clear_shared();
 		if($this->$first_call($this->regex('letter'))){
 			while($this->m_accept($this->regex('identifier'))){ ;; }
@@ -256,6 +369,10 @@ class ViewParser {
 			return false;
 		}
 	}
+	/**
+	 * The main workhorse function that loops through all lines in the view
+	 * @return bool
+	 */
 	protected function m_line() : bool {
 		$tabs = $this->m_tab();
 		if($tabs < $this->m_depth){
@@ -268,12 +385,12 @@ class ViewParser {
 		if($this->m_accept("\n",false)){
 			return true;
 		}
-		if($this->m_variable($variable_name)){
-			$this->m_register_tag(['variable' => $variable_name]);
-			if(!$this->m_expect("\n",false)){
-				$this->m_syntax_error('Expected NEWLINE on line: ' . $this->m_line);
-				return false;
-			}
+		/**
+		 * Realistically, this should probably be $this->m_content
+		 */
+		if($this->m_embedded()){
+			$this->m_clear_shared();
+			$this->m_expect("\n",false);
 			return true;
 		}
 		if($this->m_tag() && $this->m_after_tag()){
