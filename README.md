@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/wmerfalen/rdp-view-system.svg?branch=master)](https://travis-ci.org/wmerfalen/rdp-view-system)
 
 #### Current Version
-1.0
+1.1
 
 #### Description
 A PHP package that attempts to mimic some of the unique qualities of slimrb. 
