@@ -7,60 +7,12 @@
  * ViewParser is a recursive descent parser that processes view files that
  * have a very similar syntax to slimrb view files.
  *
- * Language grammar: [in EBNF]
- * letter = "A" | "B" | "C" | "D" | "E" | "F" | "G"
- *      | "H" | "I" | "J" | "K" | "L" | "M" | "N"
- *      | "O" | "P" | "Q" | "R" | "S" | "T" | "U"
- *      | "V" | "W" | "X" | "Y" | "Z" | "a" | "b"
- *      | "c" | "d" | "e" | "f" | "g" | "h" | "i"
- *      | "j" | "k" | "l" | "m" | "n" | "o" | "p"
- *      | "q" | "r" | "s" | "t" | "u" | "v" | "w"
- *      | "x" | "y" | "z" ; 
- * digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
- * symbol = ? \x21 \x23-\x26 \x28-\x2f \x3a-\x40 \x5b-\x60 \x7b-\x7e ?;
- * space = " ";
- * all chars = { single quote | double quote | letter | digit | symbol };
- * quote = "'" | '"';
- * literal = "|";
- * single quote = "'";
- * double quote = '"';
- * newline = "\n";
- * escaped quote = "\'" | '\"';
- * not double quote = { letter | digit | symbol | single quote };
- * not single quote = { letter | digit | symbol | double quote };
- * variable  = "{{$", identifier, [ ";" ], "}}";
- * function call =  "{{$", identifier, "->", identifier, "()", [ ";" ], "}}";
- * content = { letter | digit | symbol | quote | space | variable | function call };
- * identifier = letter, { letter | digit | "_" };
- * quoted string = single quote, { escaped quote | letter | digit | symbol | space }, single quote
- *  |
- *  double quote, { escaped quote | letter | digit | symbol | space }, double quote
- *  |
- * attribute = { letter | digit } , [ dash | { letter | digit } ], equals, 
- *  single quote, { not single quote | variable }, single quote 
- *  |
- *  { letter | digit } , [ dash | { letter | digit } ], equals, double quote, 
- *  { not double quote | variable }, double quote;
- * literal content = literal, content, [ { content } ];
- * tag = letter |  { letter | digit } | variable;
- * after tag = space, { attribute | variable | function call }, [ space ] 
- *  |
- *  space, { attribute | variable | function call }, space, literal content;
- * line = tag, after tag, newline
- *  |
- *  { tab }, tag, after tag, newline
- *  |
- *  tag, newline
- *  |
- *  { tab }, tag, newline;
- *  |
- *  tag, literal content, newline
- *  |
- *  { tab }, tag, literal content, newline
+ * Language grammar: To see the language grammar refer to the file EBNF is this directory. 
  */
 namespace mentoc;
 
 class ViewParser {
+	const READ_CHUNK_SIZE = 250000;
 	/** @var array $m_regex_patterns Key/value pairs of regular expressions used throughout this class */
 	protected $m_regex_patterns = [
 		'digit' => '|[0-9]{1}|',
@@ -86,7 +38,6 @@ class ViewParser {
 	protected $m_shared_read_buffer = null;
 	/** @var string $m_read_buffer read buffer */
 	protected $m_read_buffer = null;
-	const READ_CHUNK_SIZE = 250000;
 	/** @var string $m_current_tag The currently parsed tag */
 	protected $m_current_tag = '';
 	/** @var int $m_read_file_position the byte offset in the file that we are currently at */
@@ -132,6 +83,10 @@ class ViewParser {
 		$rdp_status = $this->m_program();
 		return $rdp_status;
 	}
+	/**
+	 * Combines and returns the html generated from a previous call to parse()
+	 * @return string
+	 */
 	public function compose() : string {
 		$html = '';
 		do{ 
@@ -143,6 +98,11 @@ class ViewParser {
 		while($this->m_line()){ ;; }
 		return empty($this->m_error);
 	}
+	/**
+	 * Registers an error message
+	 * @param string $message The message to register
+	 * @return void
+	 */
 	public function error($message){
 		$this->m_error[] = $message;
 	}
@@ -258,7 +218,6 @@ class ViewParser {
 	protected function m_variable(&$variable_name) : bool {
 		if($this->m_accept('{',false)){
 			if($this->m_expect('{',false)){
-				while($this->m_accept(' ',false)){ ;; }
 				if($this->m_expect('$',false) && 
 					$this->m_identifier($variable_name) &&
 					$this->m_expect('}',false) &&
@@ -300,6 +259,7 @@ class ViewParser {
 	protected function m_line() : bool {
 		$tabs = $this->m_tab();
 		if($tabs < $this->m_depth){
+			$this->m_clear_shared();
 			for(; $this->m_depth > $tabs; --$this->m_depth){
 				$this->m_register_tag(['close' => $this->m_tag_stack->pop()]);
 			}

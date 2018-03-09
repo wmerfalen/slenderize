@@ -1,0 +1,49 @@
+  letter = "A" | "B" | "C" | "D" | "E" | "F" | "G"
+       | "H" | "I" | "J" | "K" | "L" | "M" | "N"
+       | "O" | "P" | "Q" | "R" | "S" | "T" | "U"
+       | "V" | "W" | "X" | "Y" | "Z" | "a" | "b"
+       | "c" | "d" | "e" | "f" | "g" | "h" | "i"
+       | "j" | "k" | "l" | "m" | "n" | "o" | "p"
+       | "q" | "r" | "s" | "t" | "u" | "v" | "w"
+       | "x" | "y" | "z" ; 
+  digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+  symbol = ? \x21 \x23-\x26 \x28-\x2f \x3a-\x40 \x5b-\x60 \x7b-\x7e ?;
+  space = " ";
+  all chars = { single quote | double quote | letter | digit | symbol };
+  quote = "'" | '"';
+  literal = "|";
+  single quote = "'";
+  double quote = '"';
+  newline = "\n";
+  escaped quote = "\'" | '\"';
+  not double quote = { letter | digit | symbol | single quote };
+  not single quote = { letter | digit | symbol | double quote };
+  variable  = "{{$", identifier, [ ";" ], "}}";
+  function call =  "{{$", identifier, "->", identifier, "()", [ ";" ], "}}";
+  content = { letter | digit | symbol | quote | space | variable | function call };
+  identifier = letter, { letter | digit | "_" };
+  quoted string = single quote, { escaped quote | letter | digit | symbol | space }, single quote
+   |
+   double quote, { escaped quote | letter | digit | symbol | space }, double quote
+   |
+  attribute = { letter | digit } , [ dash | { letter | digit } ], equals, 
+   single quote, { not single quote | variable }, single quote 
+   |
+   { letter | digit } , [ dash | { letter | digit } ], equals, double quote, 
+   { not double quote | variable }, double quote;
+  literal content = literal, content, [ { content } ];
+  tag = letter |  { letter | digit } | variable;
+  after tag = space, { attribute | variable | function call }, [ space ] 
+   |
+   space, { attribute | variable | function call }, space, literal content;
+  line = tag, after tag, newline
+   |
+   { tab }, tag, after tag, newline
+   |
+   tag, newline
+   |
+   { tab }, tag, newline;
+   |
+   tag, literal content, newline
+   |
+   { tab }, tag, literal content, newline
