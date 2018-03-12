@@ -65,6 +65,18 @@ class PageTest extends TestCase
 		ob_end_flush();
         $this->assertEquals($output,file_get_contents($final_file));
 	}
+    public function testStaticFunctionParsingWorksCorrectly()
+    {
+		$view_dir = dirname(__FILE__) . '/ViewParser/views';
+		$cache_dir = dirname(__FILE__) . '/ViewParser/cache';
+		$cache_file = "$cache_dir/staticfunctioncall.php";
+		$expected = "$view_dir/staticfunctioncall-expected";
+		Config::set('view_dir',$view_dir);
+		Config::set('cache_dir',$cache_dir);
+		$page = new Page('staticfunctioncall');
+		$page->view();
+        $this->assertEquals(file_get_contents($expected),file_get_contents($cache_file));
+	}
     public function testPassingVariablesToPages()
     {
 		$title = 'Welcome to my page';

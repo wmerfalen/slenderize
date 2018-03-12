@@ -1,0 +1,9 @@
+html
+	head
+		title
+			{{\mentoc\tests\Foo\Bar::myFunction()}}
+	body
+		div
+			p
+		div
+			p

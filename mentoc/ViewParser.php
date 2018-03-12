@@ -135,7 +135,11 @@ class ViewParser {
 		}else if(isset($value['attribute'])){
 			$this->m_html->push(' ' . trim($value['attribute']));
 		}else if(isset($value['variable'])){
-			$this->m_html->push('<?=$view_data[\'' . $value['variable'] . '\'];?>');
+			if(isset($value['static']) && isset($value['class'])){
+				$this->m_html->push('<?=' . $value['class'] . '::$' . $value['variable'] . ';?>');
+			}else{
+				$this->m_html->push('<?=$view_data[\'' . $value['variable'] . '\'];?>');
+			}
 		}else if(isset($value['close'])){
 			$this->m_html->push('</' . $value['close'] . '>');
 		}else if(isset($value['open'])){
@@ -152,12 +156,12 @@ class ViewParser {
 						'<?=$view_data[\'' . $value['object'] . '\']->' . $value['function_name'] . '();?>'
 					);
 				}
-				/** @todo support static calls */
-				if($value['type'] == 'static'){
-					$this->m_html->push(
-						'<?=$view_data[\'' . $value['object'] . '\']::' . $value['function_name'] . '();?>'
-					);
-				}
+			}
+			if($value['type'] == 'static'){
+				/* @todo */
+				$this->m_html->push(
+					'<?=' . $value['object'] . '::' . $value['function_name'] . '();?>'
+				);
 			}
 		}
 	}
@@ -215,23 +219,56 @@ class ViewParser {
 		}
 		return false;
 	}
+
 	/**
-	 * @todo fill this function in
+	 * Identifies and stores a class identifier. i.e.: \Foo\Bar
+	 * @param string &$identifier The identifier that is parsed.
 	 * @return bool
 	 */
-	protected function m_static_call() : bool{
-
+	protected function m_static_identifier(&$identifier) : bool {
+		$this->m_clear_shared();
+		while($this->m_accept("\\") || $this->m_identifier($ident_chunk,'accept')){
+			$identifier .= $this->m_shared();
+			$this->m_clear_shared();
+		}
+		return !empty($identifier);
 	}
 
 	/**
-	 * Parses an embedded prefix: "{{$identifer" and stores the identifier in the only param to this function
-	 * @param string &$variable_name The variable name will be stored here
+	 * Checks if an embedding is being attempted
 	 * @return bool
 	 */
-	protected function m_embedded_prefix(&$variable_name) : bool {
-		if($this->m_accept('{',false) && $this->m_accept('{',false)
-			&& $this->m_accept('$',false)){
-			return $this->m_identifier($variable_name);
+	protected function m_embedded_prefix_delims() : bool {
+		return $this->m_accept('{',false) && $this->m_accept('{',false);
+	}
+	/**
+	 * Parses an embedded prefix: "{{$identifer" and stores the identifier in the only param to this function
+	 * @param array &$variable_data The information regarding the parsed entity will be stored here in an array
+	 * @return bool
+	 */
+	protected function m_embedded_prefix(&$variable_data) : bool {
+		if($this->m_embedded_prefix_delims()){
+			if($this->m_accept('$',false)){
+				$varname = '';
+				if($this->m_identifier($varname)){
+					$variable_data = [
+						'type' => 'instance',
+						'name' => $varname
+					];
+					return true;
+				}
+				return false;
+			}else{
+				$varname = '';
+				if($this->m_static_identifier($varname)){
+					$variable_data = [
+						'type' => 'static',
+						'name' => $varname
+					];
+					return true;
+				}
+				return false;
+			}
 		}
 		return false;
 	}
@@ -311,32 +348,65 @@ class ViewParser {
 	protected function m_embedded() : bool {
 		$variable_name = null;
 		if($this->m_embedded_prefix($variable_name)){
-			if($this->m_embedded_suffix()){
-				$this->m_register_multi([
-					['variable' => $variable_name]
-				]);
-			}else if($this->m_php_arrow_call()){
-				$identifier = null;
-				if($this->m_identifier($identifier) && $this->m_function_call_parens()){
-					$this->m_register_tag(
-						['function_call' => true,
-						 'object' => $variable_name,
-						 'function_name' => $identifier,
-						 'type' => 'arrow'
-						]
-					);
-				}
-				if(!$this->m_embedded_suffix()){
-					$this->halt('Expecting embedded suffix on line: ' . $this->m_line);
+			if($variable_name['type'] == 'instance'){
+				if($this->m_embedded_suffix()){
+					$this->m_register_multi([
+						['variable' => $variable_name['name']]
+					]);
+					return true;
+				}else if($this->m_php_arrow_call()){
+					$identifier = null;
+					if($this->m_identifier($identifier) && $this->m_function_call_parens()){
+						$this->m_register_tag(
+							['function_call' => true,
+							 'object' => $variable_name['name'],
+							 'function_name' => $identifier,
+							 'type' => 'arrow'
+							]
+						);
+					}
+					if(!$this->m_embedded_suffix()){
+						$this->halt('Expecting embedded suffix on line: ' . $this->m_line);
+						return false;
+					}
+					return true;
+				}else{
+					$this->halt('Unknown variable/function embedding on line: ' . $this->m_line);
 					return false;
 				}
-			}else if($this->m_static_call()){
-				/** @todo Accept static calls */
-			}else{
-				$this->halt('Unknown variable/function embedding on line: ' . $this->m_line);
-				return false;
+			}else if($variable_name['type'] == 'static'){
+				if($this->m_expect(':',false) && $this->m_expect(':',false)){
+					$ident = '';
+					if($this->m_identifier($ident) && $this->m_function_call_parens()){
+						$this->m_register_tag(
+							['function_call' => true,
+								'object' => $variable_name['name'],
+								'function_name' => $ident,
+								'type' => 'static'
+							]
+						);
+						if(!$this->m_embedded_suffix()){
+							$this->halt('Expecting embedded suffix on line: ' . $this->m_line);
+							return false;
+						}
+						return true;
+					}else if($this->m_expect('$',false) && $this->m_identifier($ident)){
+						$this->m_register_tag(
+							[ 	'class' => $variable_name['name'],
+								'variable' => $ident,
+								'type' => 'static'
+							]
+						);
+						if(!$this->m_embedded_suffix()){
+							$this->halt('Expecting embedded suffix on line: ' . $this->m_line);
+							return false;
+						}
+						return true;
+					}
+				}else{
+					return false;
+				}
 			}
-			return true;
 		}
 		return false;
 	}
@@ -393,8 +463,11 @@ class ViewParser {
 			$this->m_expect("\n",false);
 			return true;
 		}
-		if($this->m_tag() && $this->m_after_tag()){
-			$this->m_clear_shared();
+		if($this->m_tag()){
+			if($this->m_after_tag()){
+				$this->m_clear_shared();
+				return true;
+			}
 			return true;
 		}
 
