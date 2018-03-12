@@ -45,20 +45,30 @@ class PageTest extends TestCase
 		$this->assertEquals($cache_dir,$page->get_config('cache_dir'));
 	}
 
-    public function testCallingFunctionsOnObjectsThatArePassedToPages()
+	public function functionCallsAndOutputsProvider() : array {
+		return [
+			['functioncall',[
+				'my_object' => new class {
+					public function foo(){
+						return 'bar';
+					}
+				}
+				]
+			],
+			['staticfunctioncall', []]
+		];
+	}
+	/**
+	 * @dataProvider functionCallsAndOutputsProvider
+	 */
+    public function testCallingFunctionsOnObjectsThatArePassedToPages(string $function_name,array $optional_data = [])
     {
 		$view_dir = dirname(__FILE__) . '/ViewParser/views';
 		$cache_dir = dirname(__FILE__) . '/ViewParser/cache';
-		$final_file = dirname(__FILE__) . '/ViewParser/views/functioncall-final';
+		$final_file = dirname(__FILE__) . "/ViewParser/views/{$function_name}-final";
 		Config::set('view_dir',$view_dir);
 		Config::set('cache_dir',$cache_dir);
-		$page = new Page('functioncall',[
-			'my_object' => new class {
-				public function foo(){
-					return 'bar';
-				}
-			}
-		]);
+		$page = new Page($function_name,$optional_data);
 		ob_start();
 		$page->view();
 		$output = ob_get_contents();
