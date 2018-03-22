@@ -1,4 +1,6 @@
-# rdp-view-system
+# slenderize
+
+### Slenderize is a minimalistic view system for PHP.
 
 [![Build Status](https://travis-ci.org/wmerfalen/rdp-view-system.svg?branch=master)](https://travis-ci.org/wmerfalen/rdp-view-system)
 
