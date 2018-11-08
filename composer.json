@@ -1,4 +1,14 @@
 {
+    "name": "wmerfalen/slenderize",
+    "description": "Slenderize is a minimalistic view system for PHP.",
+    "type": "project",
+    "license": "wtfpl",
+    "authors": [
+        {
+            "name": "William Merfalen",
+            "email": "dev@bnull.net"
+        }
+    ],
     "require": {
         "predis/predis": "^1.1"
     },
