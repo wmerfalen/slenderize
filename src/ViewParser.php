@@ -11,10 +11,10 @@
  */
 
 namespace slenderize;
-use Exceptions\FileDoesNotExistException;
-use Exceptions\CannotReadFileException;
-use Exceptions\InvalidTypeAcceptedException;
-use Exceptions\SyntaxErrorException;
+use slenderize\Exceptions\FileDoesNotExistException;
+use slenderize\Exceptions\CannotReadFileException;
+use slenderize\Exceptions\InvalidTypeAcceptedException;
+use slenderize\Exceptions\SyntaxErrorException;
 
 class ViewParser
 {
@@ -55,6 +55,7 @@ class ViewParser
     protected $m_view_file_size = 0;
     /** @var \slenderize\LIFO $m_tag_stack A LIFO struct of tags as they are opened */
     protected $m_tag_stack = null;
+
     public function __construct(array $options = [])
     {
         $this->m_init();
