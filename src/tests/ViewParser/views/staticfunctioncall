@@ -1,7 +1,7 @@
 html
 	head
 		title
-			{{\mentoc\tests\Foo\Bar::myFunction()}}
+			{{\slenderize\tests\Foo\Bar::myFunction()}}
 	body
 		div
 			p

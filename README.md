@@ -5,10 +5,13 @@
 [![Build Status](https://travis-ci.org/wmerfalen/rdp-view-system.svg?branch=master)](https://travis-ci.org/wmerfalen/rdp-view-system)
 
 #### Current Version
-1.2
+1.3
 
 #### Description
 A PHP package that attempts to mimic some of the unique qualities of slimrb. 
+
+#### Supported Platforms
+Right now, I only have access to a linux box. This should have no problem working on MacOS or any BSD variants. Windows support is unknown as I haven't tested on that platform. 
 
 #### How it's done
 We use a Recursive Descent Parser to process the view's language grammar and then generate a PHP file from this intermediate syntax. Parsing only occurs once unless the file has been modified. 
@@ -21,25 +24,25 @@ Code that utilizes this library must set config values using the Config class
 	require 'vendor/autoload.php';
 
 	/** These two lines are required */
-	\mentoc\Config::set('view_dir','/path/to/view_dir/');
-	\mentoc\Config::set('cache_dir','/path/to/cache_dir/');
+	\slenderize\Config::set('view_dir','/path/to/view_dir/');
+	\slenderize\Config::set('cache_dir','/path/to/cache_dir/');
 ```
 
 ### Serving a view
-Use the \mentoc\Page object to serve a page to the user
+Use the \slenderize\Page object to serve a page to the user
 ```
-	$page = new \mentoc\Page('my_view');	/* Open and parse /path/to/view_dir/my_view */
+	$page = new \slenderize\Page('my_view');	/* Open and parse /path/to/view_dir/my_view */
 	$page->view();	/* Will echo out the html generated */
 
 	/* Or you if you like code golf: */
-	new \mentoc\Page('my_view')->view();
+	new \slenderize\Page('my_view')->view();
 ```
 
 ### Exceptions
-All exceptions that are thrown by the \mentoc namespace inherit from \Exception, so you can simply catch \Exception
+All exceptions that are thrown by the \slenderize namespace inherit from \Exception, so you can simply catch \Exception
 ```
 	try {
-		$page = new \mentoc\Page('my_view');
+		$page = new \slenderize\Page('my_view');
 	}catch(\Exception $e){
 		/** handle exception here */
 	}

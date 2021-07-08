@@ -1,42 +1,45 @@
 <?php
 
-namespace mentoc;
+namespace slenderize;
 
 use Redis;
 
 class Util
 {
-	public static function rand($start=0,$finish=32000):string{
-		static $call_count = 0;
-		if(++$call_count > 3){
-			return '';
-		}
-		if($start < 0){
-			$start = 1;
-		}
-		if($finish > 32000){
-			$finish = 32000;
-		}
-		return self::rand() . self::to_string([rand($start,$finish),rand($start,$finish),rand($start,$finish)]);
-	}
+    public static function rand($start=0, $finish=32000): string
+    {
+        static $call_count = 0;
+        if (++$call_count > 3) {
+            return '';
+        }
+        if ($start < 0) {
+            $start = 1;
+        }
+        if ($finish > 32000) {
+            $finish = 32000;
+        }
+        return self::rand() . self::to_string([rand($start, $finish),rand($start, $finish),rand($start, $finish)]);
+    }
 
-	public static function to_string(array $r): string {
-		$s='';
-		foreach($r as $i){
-			$s .= $i;
-		}
-		return $s;
-	}
+    public static function to_string(array $r): string
+    {
+        $s='';
+        foreach ($r as $i) {
+            $s .= $i;
+        }
+        return $s;
+    }
 
-	public static function array_repeat(array $arr,int $times): array{
-		$foo = [];
-		for($i=$times;$i > 0;$i--){
-			for($j=0;$j < count($arr);$j++){
-				$foo[] = $arr[$j];
-			}
-		}
-		return $foo;
-	}
+    public static function array_repeat(array $arr, int $times): array
+    {
+        $foo = [];
+        for ($i=$times;$i > 0;$i--) {
+            for ($j=0;$j < count($arr);$j++) {
+                $foo[] = $arr[$j];
+            }
+        }
+        return $foo;
+    }
 
     /**
      * Returns a script tag to redirect the user to the specified page
@@ -52,8 +55,9 @@ class Util
     * @param mixed | variable to be dumped
     * $param pretty | wraps in pre tags if pretty
     */
-    static function var_dump_str($mixed = null, $pretty = 0) {
-		Header::header('Content-type: text/plain');
+    public static function var_dump_str($mixed = null, $pretty = 0)
+    {
+        Header::header('Content-type: text/plain');
         ob_start();
         echo '<pre>';
         var_dump($mixed);
@@ -299,7 +303,7 @@ class Util
         return preg_match("|^/$p|", self::requestUri());
     }
 
-    public static function baseUri($inReq, $default=null) : string
+    public static function baseUri($inReq, $default=null): string
     {
         if ($inReq instanceof Request) {
             $req = $inReq->getRequestUri();
@@ -354,7 +358,7 @@ class Util
     public static function redisSet(string $foo, $bar)
     {
         if (preg_match("|commute\-text|", $foo)) {
-            $e = new \Exception;
+            $e = new \Exception();
             file_put_contents(storage_path() . "/logs/redisSet.log", date("Y-m-d H:i:s") . "::{$foo} being set to " . \
                 var_export($bar, 1) . " BT: " . var_export($e->getTraceAsString(), 1) . "\n", FILE_APPEND);
         }
@@ -434,7 +438,7 @@ class Util
 
     public static function redisKey(string $foo, $decorate=true)
     {
-    	return str_replace("www.", "", Util::serverName()) . ":$foo";
+        return str_replace("www.", "", Util::serverName()) . ":$foo";
     }
 
     public static function redisEncode($object)
@@ -494,4 +498,3 @@ class Util
         return '^(?!(?:(?:\x22?\x5C[\x00-\x7E]\x22?)|(?:\x22?[^\x5C\x22]\x22?)){255,})(?!(?:(?:\x22?\x5C[\x00-\x7E]\x22?)|(?:\x22?[^\x5C\x22]\x22?)){65,}@)(?:(?:[\x21\x23-\x27\x2A\x2B\x2D\x2F-\x39\x3D\x3F\x5E-\x7E]+)|(?:\x22(?:[\x01-\x08\x0B\x0C\x0E-\x1F\x21\x23-\x5B\x5D-\x7F]|(?:\x5C[\x00-\x7F]))*\x22))(?:\.(?:(?:[\x21\x23-\x27\x2A\x2B\x2D\x2F-\x39\x3D\x3F\x5E-\x7E]+)|(?:\x22(?:[\x01-\x08\x0B\x0C\x0E-\x1F\x21\x23-\x5B\x5D-\x7F]|(?:\x5C[\x00-\x7F]))*\x22)))*@(?:(?:(?!.*[^.]{64,})(?:(?:(?:xn--)?[a-z0-9]+(?:-[a-z0-9]+)*\.){1,126}){1,}(?:(?:[a-z][a-z0-9]*)|(?:(?:xn--)[a-z0-9]+))(?:-[a-z0-9]+)*)|(?:\[(?:(?:IPv6:(?:(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){7})|(?:(?!(?:.*[a-f0-9][:\]]){7,})(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,5})?::(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,5})?)))|(?:(?:IPv6:(?:(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){5}:)|(?:(?!(?:.*[a-f0-9]:){5,})(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,3})?::(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,3}:)?)))?(?:(?:25[0-5])|(?:2[0-4][0-9])|(?:1[0-9]{2})|(?:[1-9]?[0-9]))(?:\.(?:(?:25[0-5])|(?:2[0-4][0-9])|(?:1[0-9]{2})|(?:[1-9]?[0-9]))){3}))\]))$';
     }
 }
-

@@ -6,7 +6,7 @@
     "authors": [
         {
             "name": "William Merfalen",
-            "email": "dev@bnull.net"
+            "email": "wmerfalen@gmail.com"
         }
     ],
     "require": {
@@ -14,7 +14,7 @@
     },
     "autoload": {
         "psr-4": {
-            "mentoc\\": "mentoc/"
+            "slenderize\\": "src/"
         }
     },
     "require-dev": {
