@@ -12,12 +12,6 @@ class Page
     /** @var array $m_variable_bindings Variable bindings */
     protected $m_variable_bindings = [];
 
-    /** TODO: this needs to go. bad code smell */
-    public static function redirect($page)
-    {
-        die(header('Location: /refresh/router.php?page=' . preg_replace('|[^a-z0-9]+|', '', $page)));
-    }
-
     /**
      * Main entry point. Pass in the
      *

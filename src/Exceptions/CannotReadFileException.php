@@ -5,9 +5,9 @@
  * @license wtfpl  [@see https://www.wtfpl.net]
  */
 
-namespace slenderize;
+namespace slenderize\Exceptions;
 
-class FatalErrorException extends \Exception
+class CannotReadFileException extends \Exception
 {
     public function __construct($param = null)
     {

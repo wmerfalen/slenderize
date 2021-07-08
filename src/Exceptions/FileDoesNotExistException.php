@@ -5,9 +5,9 @@
  * @license wtfpl  [@see https://www.wtfpl.net]
  */
 
-namespace slenderize;
+namespace slenderize\Exceptions;
 
-class FileException extends \Exception
+class FileDoesNotExistException extends \Exception
 {
     public function __construct($param = null)
     {

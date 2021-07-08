@@ -11,6 +11,10 @@
  */
 
 namespace slenderize;
+use Exceptions\FileDoesNotExistException;
+use Exceptions\CannotReadFileException;
+use Exceptions\InvalidTypeAcceptedException;
+use Exceptions\SyntaxErrorException;
 
 class ViewParser
 {
@@ -20,6 +24,7 @@ class ViewParser
         'digit' => '|[0-9]{1}|',
         'symbol' => '|[\\x21\\x23-\\x26\\x28-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7e]{1}|',
         'letter' => '|[a-zA-Z]{1}|',
+        'alnum' => '|[a-zA-Z0-9]{1}|',
         'content' => '|[^\\x0a]{1}|',
         'identifier' => '|[a-zA-Z0-9_]{1}|',
         'attribute-ident' => '|[a-zA-Z0-9\-]+|'
@@ -74,6 +79,8 @@ class ViewParser
         $this->m_tag_stack = new LIFO();
     }
     /**
+		 * @throws FileDoesNotExistException if view file doesn't exist
+		 * @throws CannotReadFileException if file couldn't be opened
      * @param string $view_file_name The absolute or relative file path to the view to process
      * @return bool
      */
@@ -81,12 +88,12 @@ class ViewParser
     {
         $this->m_init();
         if (!file_exists($view_file_name)) {
-            throw new FileException('View file doesn\'t exist');
+            throw new FileDoesNotExistException('View file does not exist');
         }
         /** @todo if the file hasn't been modified, generate the view from the cached and previously generated php file */
         $this->m_file_pointer = fopen($view_file_name, 'r');
         if ($this->m_file_pointer === false) {
-            throw new FileException('Couldn\'t open view file');
+            throw new CannotReadFileException('Cannot open view file for reading');
         }
         $this->m_view_file_size = filesize($view_file_name);
         $rdp_status = $this->m_program();
@@ -185,7 +192,7 @@ class ViewParser
     protected function m_tag(): bool
     {
         $letters = 0;
-        while ($this->m_accept($this->regex('letter'))) {
+        while ($this->m_accept($this->regex('alnum'))) {
             ++$letters;
         };
         return !!$letters;
@@ -331,24 +338,13 @@ class ViewParser
     }
 
     /**
-     * Throws a FatalErrorException with $message as it's constructor argument.
-     * @param string $message
-     * @return false
-     * @throws FatalErrorException
-     */
-    public function halt($message)
-    {
-        throw new FatalErrorException($message);
-    }
-
-    /**
      * Reports a syntax error. A syntax error is a fatal and unrecoverable.
      * @param string $message
      * @return void
      */
-    protected function m_syntax_error($message)
+    protected function m_syntax_error(string $message): void
     {
-        $this->halt($message);
+        throw new SyntaxErrorException($message);
     }
     /**
      * Wrapper function to clear the currently shared buffer. Like m_initial_mode, this function exists for modular purposes
@@ -629,7 +625,7 @@ class ViewParser
             }
             return $accepted;
         } else {
-            throw 'Invalid type passed to m_accept: ' . gettype($expected_string);
+            throw new \InvalidArgumentException('Invalid type passed to m_accept: ' . gettype($expected_string));
         }
         $accepted = false;
         return false;
@@ -666,7 +662,7 @@ class ViewParser
             }
             return true;
         } else {
-            throw new \Exception('Invalid type passed to m_expect: ' . gettype($expected_string));
+            throw new \InvalidArgumentException('Invalid type passed to m_expect: ' . gettype($expected_string));
         }
     }
 }
